@@ -1,0 +1,12 @@
+{
+    "name": "cors-proxy-worker",
+    "version": "2.0.0",
+    "description": "CORS proxy for bypassing restrictions",
+    "main": "worker.js",
+    "scripts": {
+        "deploy": "wrangler publish",
+        "dev": "wrangler dev"
+    },
+    "author": "",
+    "license": "MIT"
+}
