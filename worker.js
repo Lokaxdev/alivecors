@@ -17,21 +17,16 @@ async function handleRequest(request) {
 
   const url = new URL(request.url)
   
-  // Get target URL from query parameter
+  // Get target URL
   let apiUrl = url.searchParams.get('url')
-  
-  // Fallback: check if URL is directly after ?
   if (!apiUrl) {
     apiUrl = url.search.substr(1)
   }
   
   if (!apiUrl) {
-    return new Response('Usage: https://your-worker.workers.dev/?url=https://example.com/api', {
+    return new Response('Usage: ?url=https://example.com', {
       status: 400,
-      headers: {
-        'Content-Type': 'text/plain',
-        'Access-Control-Allow-Origin': '*'
-      }
+      headers: { 'Access-Control-Allow-Origin': '*' }
     })
   }
   
@@ -40,35 +35,38 @@ async function handleRequest(request) {
     apiUrl = 'https://' + apiUrl
   }
 
-  console.log('Proxying request to:', apiUrl)
+  console.log('Proxying to:', apiUrl)
   
-  // Parse custom headers if provided
-  let customHeaders = {}
-  const corsHeaders = request.headers.get('x-cors-headers')
-  if (corsHeaders) {
-    try {
-      customHeaders = JSON.parse(corsHeaders)
-    } catch (e) {
-      console.error('Failed to parse x-cors-headers:', e)
-    }
-  }
-
-  // Create new request with original headers + custom headers
-  const modifiedHeaders = new Headers(request.headers)
-  Object.keys(customHeaders).forEach(key => {
-    modifiedHeaders.set(key, customHeaders[key])
+  // Create browser-like headers to bypass detection
+  const headers = new Headers()
+  headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+  headers.set('Accept', '*/*')
+  headers.set('Accept-Language', 'en-US,en;q=0.9')
+  headers.set('Accept-Encoding', 'gzip, deflate, br')
+  headers.set('Origin', 'https://hianime.to')
+  headers.set('Referer', 'https://hianime.to/')
+  headers.set('Sec-Fetch-Dest', 'empty')
+  headers.set('Sec-Fetch-Mode', 'cors')
+  headers.set('Sec-Fetch-Site', 'cross-site')
+  
+  // Copy important headers from original request
+  const copiedHeaders = ['Range', 'If-Range', 'If-None-Match', 'If-Modified-Since']
+  copiedHeaders.forEach(header => {
+    const value = request.headers.get(header)
+    if (value) headers.set(header, value)
   })
 
   const modifiedRequest = new Request(apiUrl, {
     method: request.method,
-    headers: modifiedHeaders,
-    body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined
+    headers: headers,
+    body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+    redirect: 'follow'
   })
   
   try {
     const response = await fetch(modifiedRequest)
     
-    // Clone response and add CORS headers
+    // Create new response with CORS headers
     const modifiedResponse = new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
@@ -81,7 +79,7 @@ async function handleRequest(request) {
     modifiedResponse.headers.set('Access-Control-Allow-Headers', '*')
     modifiedResponse.headers.set('Access-Control-Expose-Headers', '*')
     
-    // Store received headers for debugging
+    // Store received headers
     const receivedHeaders = {}
     response.headers.forEach((value, key) => {
       receivedHeaders[key] = value
@@ -91,8 +89,8 @@ async function handleRequest(request) {
     return modifiedResponse
   } catch (error) {
     console.error('Fetch error:', error)
-    return new Response('Error fetching URL: ' + error.message, {
-      status: 500,
+    return new Response(`Error: ${error.message}`, {
+      status: 502,
       headers: {
         'Content-Type': 'text/plain',
         'Access-Control-Allow-Origin': '*'
